@@ -31,6 +31,9 @@ import { useState, useEffect } from 'react';
  * @property {string} assignee
  * @property {string|null} dueDate     ISO 'YYYY-MM-DD'
  * @property {string} createdDate      ISO 'YYYY-MM-DD'
+ * @property {string} [context]        Markdown AI briefing context
+ * @property {string} [contextTool]    Target AI Tool (Claude, Cursor, etc.)
+ * @property {string} [contextUpdatedAt] ISO string timestamp
  */
 
 // The four columns of the board, in render order.
@@ -45,6 +48,23 @@ export const STAGES = [
 // Replace these placeholders with the three names from PRD §8 before M4.
 // They become the only valid values for `Task.assignee`.
 export const TEAM = ['Teammate A', 'Teammate B', 'Teammate C'];
+
+// M9 AI Tool choices
+export const AI_TOOLS = ['Claude', 'ChatGPT', 'Cursor', 'Lovable', 'Replit', 'Other'];
+
+// M9 Default Context Template
+const DEFAULT_CONTEXT_TEMPLATE = `## Background
+Briefly explain what this task is about and why we are building it.
+
+## Constraints
+- Keep dependencies minimal.
+- Ensure strict WCAG accessibility compliance.
+
+## Tried so far
+- Initial scaffold created.
+
+## Pick up
+Next immediate step for the AI / developer to execute.`;
 
 /**
  * A tiny localStorage hook — survives reloads, no library needed.
@@ -73,7 +93,6 @@ export function useLocalStorage(key, initialValue) {
   return [value, setValue];
 }
 
-
 // Data
 const initialSeedTasks = [
   {
@@ -85,6 +104,9 @@ const initialSeedTasks = [
     assignee: TEAM[0],
     dueDate: '2026-11-01',
     createdDate: '2026-10-20',
+    context: DEFAULT_CONTEXT_TEMPLATE,
+    contextTool: 'Claude',
+    contextUpdatedAt: new Date().toISOString(),
   },
   {
     id: '102',
@@ -93,8 +115,11 @@ const initialSeedTasks = [
     type: 'bug',
     status: 'in-progress',
     assignee: TEAM[1],
-    dueDate: '2026-10-25',
+    dueDate: '2026-10-20',
     createdDate: '2026-10-20',
+    context: `## Background\nDatabase queries are missing proper indexes.\n\n## Constraints\nMust maintain relational integrity.\n\n## Tried so far\nIdentified slow queries.\n\n## Pick up\nAdd index to foreign keys.`,
+    contextTool: 'Cursor',
+    contextUpdatedAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
   },
   {
     id: '103',
@@ -103,8 +128,11 @@ const initialSeedTasks = [
     type: 'feature',
     status: 'review',
     assignee: TEAM[2],
-    dueDate: '2026-10-22',
+    dueDate: '2026-10-15',
     createdDate: '2026-10-20',
+    context: DEFAULT_CONTEXT_TEMPLATE,
+    contextTool: 'ChatGPT',
+    contextUpdatedAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
   }
 ];
 
@@ -121,90 +149,110 @@ function getDueUrgency(task) {
 
   const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0) return 'alarm';      // Past due
-  if (diffDays <= 1) return 'warning';   // Less than 24-48 hours
-  return 'calm';                         // Calm / 2+ days out
+  if (diffDays < 0) return 'alarm';
+  if (diffDays <= 1) return 'warning';
+  return 'calm';
+}
+
+// M9 Helper: Relative Time Ago Format
+function formatTimeAgo(isoString) {
+  if (!isoString) return 'never';
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMins = Math.floor((now - date) / (1000 * 60));
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
 }
 
 export default function App() {
   // TODO M4 data-model:
-     const [tasks, setTasks] = useLocalStorage('vibetracker.tasks', initialSeedTasks);
-  //
+  const [tasks, setTasks] = useLocalStorage('vibetracker.tasks', initialSeedTasks);
+
   // TODO M5 crud-modal:
-    const [editingTask, setEditingTask] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
 
-    // M7 State: Toast Notification
-    const [toastMessage, setToastMessage] = useState(null);
-
-    const showToast = (msg) => {
-      setToastMessage(msg);
-      setTimeout(() => {
-        setToastMessage(null);
-      }, 3000);
-    };
-
-
-     // M5 Handlers
-    const handleOpenNewModal = (defaultStatus = 'todo') => {
-      setEditingTask({
-        id: '', // empty ID indicates brand new task
-        title: '',
-        description: '',
-        type: 'feature',
-        status: defaultStatus,
-        assignee: TEAM[0],
-        dueDate: '',
-        createdDate: new Date().toISOString().split('T')[0],
-      });
-    };
-
-    const handleOpenEditModal = (task) => {
-      setEditingTask({ ...task });
-    };
-
-    // M7 Quick Handoff directly from card
-    const handleQuickHandoff = (taskId, newAssignee) => {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, assignee: newAssignee } : t))
-      );
-      showToast(`${newAssignee} has the helm.`);
-    };
-
-
-    const handleSaveTask = (e) => {
-      e.preventDefault();
-      if (!editingTask.title.trim()) return;
-
-      if (!editingTask.id) {
-        // Create new task with short ID
-        const newTask = {
-          ...editingTask,
-          id: String(Math.floor(104 + Math.random() * 896)),
-        };
-        setTasks((prev) => [...prev, newTask]);
-      } else {
-        // Update existing task
-        setTasks((prev) =>
-          prev.map((t) => (t.id === editingTask.id ? editingTask : t))
-        );
-      }
-      setEditingTask(null);
-    };
-
-    const handleDeleteTask = () => {
-      if (window.confirm('Permanently delete this task?')) {
-        setTasks((prev) => prev.filter((t) => t.id !== editingTask.id));
-        setEditingTask(null);
-      }
-    };
-  //
   // TODO M11 anchors:
-  //   const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
+  // const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
+
+  // M7 Toast Message State
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleOpenNewModal = (defaultStatus = 'todo') => {
+    const nowIso = new Date().toISOString();
+    setEditingTask({
+      id: '',
+      title: '',
+      description: '',
+      type: 'feature',
+      status: defaultStatus,
+      assignee: TEAM[0],
+      dueDate: new Date().toISOString().split('T')[0],
+      createdDate: new Date().toISOString().split('T')[0],
+      context: DEFAULT_CONTEXT_TEMPLATE,
+      contextTool: 'Claude',
+      contextUpdatedAt: nowIso,
+    });
+  };
+
+  const handleOpenEditModal = (task) => {
+    setEditingTask({
+      ...task,
+      context: task.context ?? DEFAULT_CONTEXT_TEMPLATE,
+      contextTool: task.contextTool ?? 'Claude',
+      contextUpdatedAt: task.contextUpdatedAt ?? new Date().toISOString(),
+    });
+  };
+
+  const handleQuickHandoff = (taskId, newAssignee) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, assignee: newAssignee } : t))
+    );
+    showToast(`${newAssignee} has the helm.`);
+  };
+
+  const handleSaveTask = (e) => {
+    e.preventDefault();
+    if (!editingTask.title.trim()) return;
+
+    if (!editingTask.id) {
+      const newTask = {
+        ...editingTask,
+        id: String(Math.floor(104 + Math.random() * 896)),
+      };
+      setTasks((prev) => [...prev, newTask]);
+    } else {
+      const oldTask = tasks.find((t) => t.id === editingTask.id);
+      if (oldTask && oldTask.assignee !== editingTask.assignee) {
+        showToast(`${editingTask.assignee} has the helm.`);
+      }
+      setTasks((prev) =>
+        prev.map((t) => (t.id === editingTask.id ? editingTask : t))
+      );
+    }
+    setEditingTask(null);
+  };
+
+  const handleDeleteTask = () => {
+    if (window.confirm('Permanently delete this task?')) {
+      setTasks((prev) => prev.filter((t) => t.id !== editingTask.id));
+      setEditingTask(null);
+    }
+  };
 
   return (
-    <div className="h-screen flex flex-col p-6 overflow-hidden bg-slate-100 text-slate-900 font-sans">
-
-      {/* M7 Visual Toast Notification */}
+    <div className="h-screen flex flex-col p-6 overflow-hidden bg-slate-100 text-slate-900 font-sans relative">
+      
+      {/* M7 Handoff Toast Notification */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-sm shadow-xl border border-slate-700 text-sm font-semibold flex items-center gap-2 transition-all">
           <span>🤝</span>
@@ -212,17 +260,18 @@ export default function App() {
         </div>
       )}
 
-      <header className="mb-6 flex items-end justify-between flex-shrink-0">
+      <header className="mb-4 flex items-end justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
             Vibecoding Project Tracker
           </h1>
           <p className="text-sm text-slate-500">
+            {/* Replace this line with your team name from PRD §11. */}
             BaseTracker · Team starter
           </p>
         </div>
 
-        {/* M5 '+' Button */}
+        {/* M5 Add Task Button */}
         <button
           onClick={() => handleOpenNewModal('todo')}
           className="bg-[#025a9e] hover:bg-[#003b6f] text-white px-4 py-2 rounded-sm font-bold text-sm transition-colors shadow-sm cursor-pointer"
@@ -232,6 +281,41 @@ export default function App() {
       </header>
 
       {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
+
+      {/* M7 Active Drivers & M8 Urgency Legend Bar */}
+      <div className="mb-4 flex items-center justify-between gap-3 bg-white p-3 rounded-md border border-slate-200 shadow-sm flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
+            Drivers:
+          </span>
+          {TEAM.map((member) => {
+            const activeTask = tasks.find(
+              (t) => t.assignee === member && t.status === 'in-progress'
+            ) || tasks.find((t) => t.assignee === member && t.status !== 'done');
+
+            return (
+              <div key={member} className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded border border-slate-200 text-xs">
+                <div className="w-4 h-4 rounded-full bg-[#025a9e] flex items-center justify-center text-white font-bold text-[9px]">
+                  {member.charAt(member.length - 1)}
+                </div>
+                <span className="font-bold text-slate-800">{member}:</span>
+                <span className="text-slate-600 truncate max-w-[120px]">
+                  {activeTask ? activeTask.title : 'Idle'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* M8 Urgency Legend */}
+        <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-600 border-l border-slate-200 pl-4">
+          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">Urgency:</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Calm</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> &lt;24h</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> Past Due</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-200 border border-slate-400"></span> Done</span>
+        </div>
+      </div>
 
       {/*
         TODO M4 data-model:
@@ -243,42 +327,6 @@ export default function App() {
           Add a "+" button that opens a modal with every Task field.
           Clicking a card should open the same modal in edit mode.
       */}
-
-
-      {/* M7 Team Active Driver Strip */}
-      <div className="mb-4 flex items-center gap-3 bg-white p-3 rounded-md border border-slate-200 shadow-sm flex-shrink-0">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-2">
-          Team Drivers:
-        </span>
-        {TEAM.map((member) => {
-          const activeTask = tasks.find(
-            (t) => t.assignee === member && t.status === 'in-progress'
-          ) || tasks.find((t) => t.assignee === member && t.status !== 'done');
-
-          return (
-            <div key={member} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded border border-slate-200 text-xs">
-              <div className="w-5 h-5 rounded-full bg-[#025a9e] flex items-center justify-center text-white font-bold text-[10px]">
-                {member.charAt(member.length - 1)}
-              </div>
-              <span className="font-bold text-slate-800">{member}:</span>
-              <span className="text-slate-600 truncate max-w-[150px]">
-                {activeTask ? activeTask.title : 'Idle'}
-              </span>
-            </div>
-          );
-        })}
-        {/* M8 Urgency Legend */}
-        <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-600 border-l border-slate-200 pl-4">
-          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">Urgency:</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Calm</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> &lt;24h</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> Past Due</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-200 border border-slate-400"></span> Done</span>
-        </div>
-      </div>
-
-
-      {/* 4-Column Grid */}
       <main className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 min-h-0">
         {STAGES.map((stage) => {
           const columnTasks = tasks.filter((task) => task.status === stage.id);
@@ -301,7 +349,6 @@ export default function App() {
                 {columnTasks.map((task) => {
                   const urgency = getDueUrgency(task);
 
-                  // M8 Card Tint Classes based on Urgency
                   let cardStyle = '';
                   if (urgency === 'done') {
                     cardStyle = 'bg-slate-50 border-slate-200 opacity-60 grayscale';
@@ -325,7 +372,6 @@ export default function App() {
                         <span className="text-xs text-slate-600 font-mono font-semibold">ID-{task.id}</span>
                         
                         <div className="flex items-center gap-1">
-                          {/* M8 Urgency Badge */}
                           {urgency === 'alarm' && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-red-600 text-white">
                               🚨 PAST DUE
@@ -358,7 +404,7 @@ export default function App() {
                           <span className="text-xs text-slate-700 font-medium">{task.assignee}</span>
                         </div>
 
-                        {/* Handoff Dropdown */}
+                        {/* M7 Handoff Dropdown */}
                         <select
                           value={task.assignee}
                           onClick={(e) => e.stopPropagation()}
@@ -377,6 +423,7 @@ export default function App() {
                   );
                 })}
 
+                {/* Empty column state */}
                 {columnTasks.length === 0 && (
                   <div className="border-2 border-dashed border-slate-200 p-6 text-center rounded-sm my-auto">
                     <span className="text-xs text-slate-400">No tasks in this phase.</span>
@@ -389,10 +436,10 @@ export default function App() {
         })}
       </main>
 
-      {/* CRUD Modal */}
+      {/* M5 / M6 / M9 CRUD & Context Modal Overlay */}
       {editingTask && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-md max-w-lg w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4">
+          <div className="bg-white rounded-md max-w-2xl w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
@@ -400,6 +447,7 @@ export default function App() {
                   {editingTask.id ? `Edit Task (ID-${editingTask.id})` : 'New Task'}
                 </h2>
                 
+                {/* M6 Badge */}
                 <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1 text-white ${
                   editingTask.type === 'feature' ? 'bg-[#0ca678]' : 'bg-[#e03131]'
                 }`}>
@@ -439,12 +487,58 @@ export default function App() {
                   Description
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={editingTask.description}
                   onChange={(e) => setEditingTask({ ...editingTask, description: e.target.value })}
-                  placeholder="Provide context or instructions for this task..."
+                  placeholder="Provide brief context or instructions..."
                   className="p-2 border border-slate-300 rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#025a9e] resize-none"
                 />
+              </div>
+
+              {/* TODO M9 context: Task Context Section */}
+              <div className="flex flex-col gap-1 bg-slate-50 p-3 rounded border border-slate-200">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                    <span>🤖 Task Context Briefing</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    Last updated {formatTimeAgo(editingTask.contextUpdatedAt)}
+                  </span>
+                </div>
+
+                <textarea
+                  rows={6}
+                  value={editingTask.context}
+                  onChange={(e) =>
+                    setEditingTask({
+                      ...editingTask,
+                      context: e.target.value,
+                      contextUpdatedAt: new Date().toISOString(),
+                    })
+                  }
+                  placeholder="Provide detailed AI context (Background, Constraints, Tried so far, Pick up)..."
+                  className="p-2.5 border border-slate-300 rounded-sm text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-[#025a9e] leading-relaxed resize-y"
+                />
+
+                {/* M9 AI Tool Select */}
+                <div className="flex items-center gap-2 mt-2">
+                  <label className="text-xs text-slate-600 font-semibold">
+                    Optional AI Tool:
+                  </label>
+                  <select
+                    value={editingTask.contextTool || 'Claude'}
+                    onChange={(e) =>
+                      setEditingTask({ ...editingTask, contextTool: e.target.value })
+                    }
+                    className="p-1 border border-slate-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#025a9e]"
+                  >
+                    {AI_TOOLS.map((tool) => (
+                      <option key={tool} value={tool}>
+                        {tool}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Type & Status Row */}
@@ -514,7 +608,7 @@ export default function App() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
+              <div className="flex justify-between items-center mt-2 pt-3 border-t border-slate-200">
                 {editingTask.id ? (
                   <button
                     type="button"
@@ -535,6 +629,9 @@ export default function App() {
                   >
                     Cancel
                   </button>
+                  
+                  {/* TODO M10 copy-prompt: Add "Copy as Prompt Context" button here in M10 */}
+
                   <button
                     type="submit"
                     className="px-4 py-1.5 bg-[#025a9e] hover:bg-[#003b6f] text-white rounded-sm text-sm font-bold transition-colors shadow-sm cursor-pointer"
