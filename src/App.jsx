@@ -108,6 +108,24 @@ const initialSeedTasks = [
   }
 ];
 
+// M8 Helper: Calculate Time-Based Urgency
+function getDueUrgency(task) {
+  if (task.status === 'done') return 'done';
+  if (!task.dueDate) return 'calm';
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const due = new Date(task.dueDate);
+  due.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return 'alarm';      // Past due
+  if (diffDays <= 1) return 'warning';   // Less than 24-48 hours
+  return 'calm';                         // Calm / 2+ days out
+}
+
 export default function App() {
   // TODO M4 data-model:
      const [tasks, setTasks] = useLocalStorage('vibetracker.tasks', initialSeedTasks);
@@ -249,6 +267,14 @@ export default function App() {
             </div>
           );
         })}
+        {/* M8 Urgency Legend */}
+        <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-600 border-l border-slate-200 pl-4">
+          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">Urgency:</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Calm</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> &lt;24h</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> Past Due</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-200 border border-slate-400"></span> Done</span>
+        </div>
       </div>
 
 
@@ -272,56 +298,84 @@ export default function App() {
 
               {/* Task Cards Container */}
               <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-1">
-                {columnTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    onClick={() => handleOpenEditModal(task)}
-                    className={`p-4 rounded-sm border-[1.5px] shadow-sm flex flex-col gap-2 transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5
-                      ${task.type === 'feature'
-                        ? 'border-[#0ca678] bg-[#e6fcf5]'
-                        : 'border-[#e03131] bg-[#fff5f5]'
-                      }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-slate-600 font-mono font-semibold">ID-{task.id}</span>
-                      
-                      <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1
-                        ${task.type === 'feature' ? 'bg-[#0ca678] text-white' : 'bg-[#e03131] text-white'}
-                      `}>
-                        {task.type === 'feature' ? '⚙️ Feature' : '🚨 Bug'}
-                      </span>
-                    </div>
+                {columnTasks.map((task) => {
+                  const urgency = getDueUrgency(task);
 
-                    <h3 className="text-sm font-semibold text-slate-900 leading-snug">
-                      {task.title}
-                    </h3>
+                  // M8 Card Tint Classes based on Urgency
+                  let cardStyle = '';
+                  if (urgency === 'done') {
+                    cardStyle = 'bg-slate-50 border-slate-200 opacity-60 grayscale';
+                  } else if (urgency === 'alarm') {
+                    cardStyle = 'bg-red-50 border-red-500 shadow-red-100';
+                  } else if (urgency === 'warning') {
+                    cardStyle = 'bg-amber-50 border-amber-500 shadow-amber-100';
+                  } else {
+                    cardStyle = task.type === 'feature'
+                      ? 'border-[#0ca678] bg-[#e6fcf5]'
+                      : 'border-[#e03131] bg-[#fff5f5]';
+                  }
 
-                    {/* M7 Assignee + "Hand off to..." Inline Control */}
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-black/5">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-[#025a9e] flex items-center justify-center text-white text-[10px] font-bold">
-                          {task.assignee.charAt(task.assignee.length - 1)}
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => handleOpenEditModal(task)}
+                      className={`p-4 rounded-sm border-[1.5px] shadow-sm flex flex-col gap-2 transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${cardStyle}`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-slate-600 font-mono font-semibold">ID-{task.id}</span>
+                        
+                        <div className="flex items-center gap-1">
+                          {/* M8 Urgency Badge */}
+                          {urgency === 'alarm' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-red-600 text-white">
+                              🚨 PAST DUE
+                            </span>
+                          )}
+                          {urgency === 'warning' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold bg-amber-500 text-white">
+                              ⚠️ DUE SOON
+                            </span>
+                          )}
+
+                          <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1
+                            ${task.type === 'feature' ? 'bg-[#0ca678] text-white' : 'bg-[#e03131] text-white'}
+                          `}>
+                            {task.type === 'feature' ? '⚙️ Feature' : '🚨 Bug'}
+                          </span>
                         </div>
-                        <span className="text-xs text-slate-700 font-medium">{task.assignee}</span>
                       </div>
 
-                      {/* M7 Quick Handoff Dropdown */}
-                      <select
-                        value={task.assignee}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => handleQuickHandoff(task.id, e.target.value)}
-                        className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium focus:outline-none hover:border-slate-400 cursor-pointer"
-                        title="Hand off to..."
-                      >
-                        {TEAM.map((m) => (
-                          <option key={m} value={m}>
-                            Hand off to {m}
-                          </option>
-                        ))}
-                      </select>
+                      <h3 className="text-sm font-semibold text-slate-900 leading-snug">
+                        {task.title}
+                      </h3>
+
+                      {/* Card Footer */}
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-black/5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full bg-[#025a9e] flex items-center justify-center text-white text-[10px] font-bold">
+                            {task.assignee.charAt(task.assignee.length - 1)}
+                          </div>
+                          <span className="text-xs text-slate-700 font-medium">{task.assignee}</span>
+                        </div>
+
+                        {/* Handoff Dropdown */}
+                        <select
+                          value={task.assignee}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => handleQuickHandoff(task.id, e.target.value)}
+                          className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium focus:outline-none hover:border-slate-400 cursor-pointer"
+                          title="Hand off to..."
+                        >
+                          {TEAM.map((m) => (
+                            <option key={m} value={m}>
+                              Hand off to {m}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {columnTasks.length === 0 && (
                   <div className="border-2 border-dashed border-slate-200 p-6 text-center rounded-sm my-auto">
@@ -427,7 +481,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Assignee (Hand off to) & Due Date Row */}
+              {/* Assignee & Due Date Row */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
