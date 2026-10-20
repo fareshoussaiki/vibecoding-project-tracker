@@ -36,6 +36,13 @@ import { useState, useEffect } from 'react';
  * @property {string} [contextUpdatedAt] ISO string timestamp
  */
 
+/**
+ * @typedef {Object} Anchor
+ * @property {string} id
+ * @property {string} label
+ * @property {string} url
+ */
+
 // The four columns of the board, in render order.
 // Use these IDs everywhere — do not invent new ones.
 export const STAGES = [
@@ -51,6 +58,14 @@ export const TEAM = ['Teammate A', 'Teammate B', 'Teammate C'];
 
 // M9 AI Tool choices
 export const AI_TOOLS = ['Claude', 'ChatGPT', 'Cursor', 'Lovable', 'Replit', 'Other'];
+
+// M11 Deliverable Anchor Default State
+export const DEFAULT_ANCHORS = [
+  { id: 'presentation', label: 'Presentation', url: '' },
+  { id: 'demo',         label: 'Demo',         url: '' },
+  { id: 'report',       label: 'Report',       url: '' },
+  { id: 'documentation',label: 'Documentation',url: '' },
+];
 
 // M9 Default Context Template
 const DEFAULT_CONTEXT_TEMPLATE = `## Background
@@ -191,7 +206,7 @@ export default function App() {
   const [editingTask, setEditingTask] = useState(null);
 
   // TODO M11 anchors:
-  // const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
+  const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', DEFAULT_ANCHORS);
 
   // M7 & M10 Toast Message State
   const [toastMessage, setToastMessage] = useState(null);
@@ -199,6 +214,13 @@ export default function App() {
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // M11 Anchor Handler
+  const handleAnchorChange = (id, newUrl) => {
+    setAnchors((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, url: newUrl } : a))
+    );
   };
 
   // M10 Clipboard Copy Handler
@@ -306,6 +328,52 @@ export default function App() {
       </header>
 
       {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4 flex-shrink-0">
+        {anchors.map((anchor) => {
+          const hasUrl = Boolean(anchor.url && anchor.url.trim());
+          return (
+            <div
+              key={anchor.id}
+              className="bg-white p-3 rounded-md border border-slate-200 shadow-sm flex flex-col gap-1.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  {anchor.label}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {hasUrl && (
+                    <a
+                      href={anchor.url.startsWith('http') ? anchor.url : `https://${anchor.url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-[#025a9e] hover:underline font-semibold"
+                      title="Open link"
+                    >
+                      ↗ Open
+                    </a>
+                  )}
+                  <span
+                    className={`w-3 h-3 rounded-full border transition-colors ${
+                      hasUrl
+                        ? 'bg-[#025a9e] border-[#025a9e]'
+                        : 'bg-white border-slate-300'
+                    }`}
+                    title={hasUrl ? 'Deliverable Linked' : 'Deliverable Empty'}
+                  />
+                </div>
+              </div>
+
+              <input
+                type="text"
+                value={anchor.url || ''}
+                onChange={(e) => handleAnchorChange(anchor.id, e.target.value)}
+                placeholder="Enter URL..."
+                className="text-xs p-1.5 border border-slate-300 rounded text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#025a9e]"
+              />
+            </div>
+          );
+        })}
+      </div>
 
       {/* M7 Active Drivers & M8 Urgency Legend Bar */}
       <div className="mb-4 flex items-center justify-between gap-3 bg-white p-3 rounded-md border border-slate-200 shadow-sm flex-shrink-0">
