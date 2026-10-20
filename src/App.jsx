@@ -229,6 +229,8 @@ export default function App() {
                   >
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-slate-600 font-mono font-semibold">ID-{task.id}</span>
+                      
+                      {/* M6 Tag Style & Icon */}
                       <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1
                         ${task.type === 'feature' ? 'bg-[#0ca678] text-white' : 'bg-[#e03131] text-white'}
                       `}>
@@ -242,7 +244,6 @@ export default function App() {
 
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-black/5">
                       <div className="flex items-center gap-2">
-                        {/* Fixed Avatar Icon */}
                         <div className="w-5 h-5 rounded-full bg-[#025a9e] flex items-center justify-center text-white text-[10px] font-bold">
                           {task.assignee.charAt(task.assignee.length - 1)}
                         </div>
@@ -257,7 +258,6 @@ export default function App() {
                   </div>
                 ))}
 
-                {/* Empty column state */}
                 {columnTasks.length === 0 && (
                   <div className="border-2 border-dashed border-slate-200 p-6 text-center rounded-sm my-auto">
                     <span className="text-xs text-slate-400">No tasks in this phase.</span>
@@ -270,15 +270,25 @@ export default function App() {
         })}
       </main>
 
-      {/* M5 CRUD Modal Overlay */}
+      {/* M5 / M6 CRUD Modal */}
       {editingTask && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-md max-w-lg w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4">
             
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h2 className="text-lg font-bold text-slate-900">
-                {editingTask.id ? `Edit Task (ID-${editingTask.id})` : 'New Task'}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">
+                  {editingTask.id ? `Edit Task (ID-${editingTask.id})` : 'New Task'}
+                </h2>
+                
+                {/* M6 Badge inside Modal Header */}
+                <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1 text-white ${
+                  editingTask.type === 'feature' ? 'bg-[#0ca678]' : 'bg-[#e03131]'
+                }`}>
+                  {editingTask.type === 'feature' ? '⚙️ Feature' : '🚨 Bug'}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setEditingTask(null)}
@@ -407,7 +417,6 @@ export default function App() {
                   >
                     Cancel
                   </button>
-                  {/* Fixed Save Changes Button */}
                   <button
                     type="submit"
                     className="px-4 py-1.5 bg-[#025a9e] hover:bg-[#003b6f] text-white rounded-sm text-sm font-bold transition-colors shadow-sm cursor-pointer"
