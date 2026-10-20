@@ -169,6 +169,20 @@ function formatTimeAgo(isoString) {
   return `${diffDays}d ago`;
 }
 
+// M10 Helper: Serializes task into clean AI prompt context
+function formatTaskPrompt(task) {
+  return `# Task Briefing: ${task.title} (ID-${task.id})
+**Type:** ${task.type === 'feature' ? 'Feature ⚙️' : 'Bug 🚨'}
+**Status:** ${task.status.toUpperCase()}
+**Assignee:** ${task.assignee}
+${task.dueDate ? `**Due Date:** ${task.dueDate}` : ''}
+
+## Description
+${task.description || 'No description provided.'}
+
+${task.context || ''}`;
+}
+
 export default function App() {
   // TODO M4 data-model:
   const [tasks, setTasks] = useLocalStorage('vibetracker.tasks', initialSeedTasks);
@@ -179,12 +193,23 @@ export default function App() {
   // TODO M11 anchors:
   // const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
 
-  // M7 Toast Message State
+  // M7 & M10 Toast Message State
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // M10 Clipboard Copy Handler
+  const handleCopyContext = (task, e) => {
+    if (e) e.stopPropagation();
+    const formattedText = formatTaskPrompt(task);
+    navigator.clipboard.writeText(formattedText).then(() => {
+      showToast('Copied to clipboard!');
+    }).catch(() => {
+      showToast('Failed to copy to clipboard.');
+    });
   };
 
   const handleOpenNewModal = (defaultStatus = 'todo') => {
@@ -252,10 +277,10 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col p-6 overflow-hidden bg-slate-100 text-slate-900 font-sans relative">
       
-      {/* M7 Handoff Toast Notification */}
+      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-sm shadow-xl border border-slate-700 text-sm font-semibold flex items-center gap-2 transition-all">
-          <span>🤝</span>
+          <span>📋</span>
           <span>{toastMessage}</span>
         </div>
       )}
@@ -404,20 +429,33 @@ export default function App() {
                           <span className="text-xs text-slate-700 font-medium">{task.assignee}</span>
                         </div>
 
-                        {/* M7 Handoff Dropdown */}
-                        <select
-                          value={task.assignee}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => handleQuickHandoff(task.id, e.target.value)}
-                          className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium focus:outline-none hover:border-slate-400 cursor-pointer"
-                          title="Hand off to..."
-                        >
-                          {TEAM.map((m) => (
-                            <option key={m} value={m}>
-                              Hand off to {m}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-1">
+                          {/* M10 Copy Context Compact Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyContext(task, e)}
+                            className="inline-flex items-center gap-1 text-[11px] bg-white hover:bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-300 font-medium transition-colors cursor-pointer whitespace-nowrap shadow-2xs"
+                            title="Copy prompt context to clipboard"
+                          >
+                            <span>📋</span>
+                            <span>Copy</span>
+                          </button>
+
+                          {/* M7 Handoff Dropdown */}
+                          <select
+                            value={task.assignee}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => handleQuickHandoff(task.id, e.target.value)}
+                            className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium focus:outline-none hover:border-slate-400 cursor-pointer"
+                            title="Hand off to..."
+                          >
+                            {TEAM.map((m) => (
+                              <option key={m} value={m}>
+                                Hand off to {m}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     </div>
                   );
@@ -436,7 +474,7 @@ export default function App() {
         })}
       </main>
 
-      {/* M5 / M6 / M9 CRUD & Context Modal Overlay */}
+      {/* M5 / M6 / M9 / M10 CRUD & Context Modal Overlay */}
       {editingTask && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-md max-w-2xl w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
@@ -501,9 +539,22 @@ export default function App() {
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1">
                     <span>🤖 Task Context Briefing</span>
                   </label>
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    Last updated {formatTimeAgo(editingTask.contextUpdatedAt)}
-                  </span>
+                  
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      Last updated {formatTimeAgo(editingTask.contextUpdatedAt)}
+                    </span>
+                    
+                    {/* M10 Copy Context Button Inside Modal */}
+                    <button
+                      type="button"
+                      onClick={() => handleCopyContext(editingTask)}
+                      className="inline-flex items-center gap-1 text-xs bg-[#025a9e] hover:bg-[#003b6f] text-white px-2.5 py-1 rounded font-bold transition-colors cursor-pointer shadow-sm"
+                    >
+                      <span>📋</span>
+                      <span>Copy Context</span>
+                    </button>
+                  </div>
                 </div>
 
                 <textarea
@@ -629,8 +680,6 @@ export default function App() {
                   >
                     Cancel
                   </button>
-                  
-                  {/* TODO M10 copy-prompt: Add "Copy as Prompt Context" button here in M10 */}
 
                   <button
                     type="submit"
