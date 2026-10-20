@@ -81,6 +81,44 @@ Briefly explain what this task is about and why we are building it.
 ## Pick up
 Next immediate step for the AI / developer to execute.`;
 
+// M12 Web Audio Synthesizer Sound Effects (No external files needed)
+function playAudioFeedback(type) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    if (type === 'drop') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } else if (type === 'done') {
+      [523.25, 659.25, 783.99].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.12, ctx.currentTime + idx * 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.08 + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + idx * 0.08);
+        osc.stop(ctx.currentTime + idx * 0.08 + 0.25);
+      });
+    }
+  } catch {
+    /* Ignore audio context restrictions */
+  }
+}
+
 /**
  * A tiny localStorage hook — survives reloads, no library needed.
  *
@@ -208,6 +246,10 @@ export default function App() {
   // TODO M11 anchors:
   const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', DEFAULT_ANCHORS);
 
+  // TODO M12 secret-sauce: Drag-and-Drop state
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragOverStage, setDragOverStage] = useState(null);
+
   // M7 & M10 Toast Message State
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -232,6 +274,53 @@ export default function App() {
     }).catch(() => {
       showToast('Failed to copy to clipboard.');
     });
+  };
+
+  // M12 Secret Sauce: Master Sprint Export (Formatting Fixed)
+  const handleExportSprintPrompt = () => {
+    const summary = `# Vibecoding Sprint Overview
+**Total Tasks:** ${tasks.length}
+**Completed:** ${tasks.filter((t) => t.status === 'done').length}
+**In Progress:** ${tasks.filter((t) => t.status === 'in-progress').length}
+
+## Active Deliverables
+${anchors.map((a) => `- **${a.label}:**${a.url && a.url.trim() ? a.url.trim() : 'Not set'}`).join('\n')}
+
+## Tasks Detail
+${tasks.map((t) => `### [ID-${t.id}] ${t.title} (${t.status.toUpperCase()})
+- Assignee: ${t.assignee}
+- Type: ${t.type}${t.context && t.context.trim() ? `\n\n${t.context.trim()}` : ''}`).join('\n\n')}`;
+
+    navigator.clipboard.writeText(summary).then(() => {
+      showToast('⚡ Master Sprint Prompt Copied!');
+    });
+  };
+
+  // M12 Drag & Drop Handlers
+  const handleDragStart = (taskId, e) => {
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData('text/plain', taskId);
+  };
+
+  const handleDragOver = (stageId, e) => {
+    e.preventDefault();
+    if (dragOverStage !== stageId) {
+      setDragOverStage(stageId);
+    }
+  };
+
+  const handleDrop = (stageId, e) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+    if (taskId) {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: stageId } : t))
+      );
+      playAudioFeedback(stageId === 'done' ? 'done' : 'drop');
+      showToast(`Task moved to ${STAGES.find((s) => s.id === stageId)?.label}`);
+    }
+    setDraggedTaskId(null);
+    setDragOverStage(null);
   };
 
   const handleOpenNewModal = (defaultStatus = 'todo') => {
@@ -296,8 +385,13 @@ export default function App() {
     }
   };
 
+  // M12 Metrics Calculations
+  const completedCount = tasks.filter((t) => t.status === 'done').length;
+  const progressPct = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const bugCount = tasks.filter((t) => t.type === 'bug').length;
+
   return (
-    <div className="h-screen flex flex-col p-6 overflow-hidden bg-slate-100 text-slate-900 font-sans relative">
+    <div className="min-h-screen flex flex-col p-6 overflow-y-auto bg-slate-100 text-slate-900 font-sans relative">
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -318,16 +412,28 @@ export default function App() {
           </p>
         </div>
 
-        {/* M5 Add Task Button */}
-        <button
-          onClick={() => handleOpenNewModal('todo')}
-          className="bg-[#025a9e] hover:bg-[#003b6f] text-white px-4 py-2 rounded-sm font-bold text-sm transition-colors shadow-sm cursor-pointer"
-        >
-          + Add Task
-        </button>
+        <div className="flex items-center gap-2">
+          {/* M12 Master Prompt Export Button */}
+          <button
+            onClick={handleExportSprintPrompt}
+            className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-sm font-bold text-xs transition-colors shadow-sm cursor-pointer flex items-center gap-1"
+            title="Copy full sprint context for AI tools"
+          >
+            <span>⚡</span>
+            <span>Export Sprint Prompt</span>
+          </button>
+
+          {/* M5 Add Task Button */}
+          <button
+            onClick={() => handleOpenNewModal('todo')}
+            className="bg-[#025a9e] hover:bg-[#003b6f] text-white px-4 py-2 rounded-sm font-bold text-sm transition-colors shadow-sm cursor-pointer"
+          >
+            + Add Task
+          </button>
+        </div>
       </header>
 
-      {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
+      {/* TODO M11 anchors: Deliverable Anchor Board */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4 flex-shrink-0">
         {anchors.map((anchor) => {
           const hasUrl = Boolean(anchor.url && anchor.url.trim());
@@ -375,7 +481,7 @@ export default function App() {
         })}
       </div>
 
-      {/* M7 Active Drivers & M8 Urgency Legend Bar */}
+      {/* M7 Active Drivers & M8 Legend & M12 Secret Sauce Pulse Bar */}
       <div className="mb-4 flex items-center justify-between gap-3 bg-white p-3 rounded-md border border-slate-200 shadow-sm flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
@@ -400,13 +506,15 @@ export default function App() {
           })}
         </div>
 
-        {/* M8 Urgency Legend */}
+        {/* M12 Secret Sauce Sprint Pulse Analytics */}
         <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-600 border-l border-slate-200 pl-4">
-          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">Urgency:</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Calm</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> &lt;24h</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600"></span> Past Due</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-200 border border-slate-400"></span> Done</span>
+          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-bold">Sprint Velocity:</span>
+          <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono font-bold">
+            {progressPct}% Done
+          </span>
+          <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-mono font-bold">
+            {bugCount} Bugs
+          </span>
         </div>
       </div>
 
@@ -420,12 +528,20 @@ export default function App() {
           Add a "+" button that opens a modal with every Task field.
           Clicking a card should open the same modal in edit mode.
       */}
-      <main className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 min-h-0">
+      <main className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1">
         {STAGES.map((stage) => {
           const columnTasks = tasks.filter((task) => task.status === stage.id);
+          const isOver = dragOverStage === stage.id;
 
           return (
-            <div key={stage.id} className="flex flex-col gap-4 bg-white p-4 rounded-md border border-slate-200 shadow-sm h-full">
+            <div
+              key={stage.id}
+              onDragOver={(e) => handleDragOver(stage.id, e)}
+              onDrop={(e) => handleDrop(stage.id, e)}
+              className={`flex flex-col gap-4 p-4 rounded-md border shadow-sm min-h-[400px] transition-colors ${
+                isOver ? 'bg-blue-50/80 border-[#025a9e] ring-2 ring-[#025a9e]/20' : 'bg-white border-slate-200'
+              }`}
+            >
               
               {/* Column Header */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -438,7 +554,7 @@ export default function App() {
               </div>
 
               {/* Task Cards Container */}
-              <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-3 flex-1">
                 {columnTasks.map((task) => {
                   const urgency = getDueUrgency(task);
 
@@ -458,8 +574,10 @@ export default function App() {
                   return (
                     <div
                       key={task.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(task.id, e)}
                       onClick={() => handleOpenEditModal(task)}
-                      className={`p-4 rounded-sm border-[1.5px] shadow-sm flex flex-col gap-2 transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${cardStyle}`}
+                      className={`p-4 rounded-sm border-[1.5px] shadow-sm flex flex-col gap-2 transition-all cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5 ${cardStyle}`}
                     >
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-slate-600 font-mono font-semibold">ID-{task.id}</span>
@@ -544,8 +662,8 @@ export default function App() {
 
       {/* M5 / M6 / M9 / M10 CRUD & Context Modal Overlay */}
       {editingTask && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-md max-w-2xl w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-md max-w-2xl w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4 max-h-[90vh] overflow-y-auto my-auto">
             
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
