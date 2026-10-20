@@ -113,23 +113,76 @@ export default function App() {
      const [tasks, setTasks] = useLocalStorage('vibetracker.tasks', initialSeedTasks);
   //
   // TODO M5 crud-modal:
-  //   const [editing, setEditing] = useState(null);
+    const [editingTask, setEditingTask] = useState(null);
+
+
+     // M5 Handlers
+    const handleOpenNewModal = (defaultStatus = 'todo') => {
+      setEditingTask({
+        id: '', // empty ID indicates brand new task
+        title: '',
+        description: '',
+        type: 'feature',
+        status: defaultStatus,
+        assignee: TEAM[0],
+        dueDate: '',
+        createdDate: new Date().toISOString().split('T')[0],
+      });
+    };
+
+    const handleOpenEditModal = (task) => {
+      setEditingTask({ ...task });
+    };
+
+    const handleSaveTask = (e) => {
+      e.preventDefault();
+      if (!editingTask.title.trim()) return;
+
+      if (!editingTask.id) {
+        // Create new task with short ID
+        const newTask = {
+          ...editingTask,
+          id: String(Math.floor(104 + Math.random() * 896)),
+        };
+        setTasks((prev) => [...prev, newTask]);
+      } else {
+        // Update existing task
+        setTasks((prev) =>
+          prev.map((t) => (t.id === editingTask.id ? editingTask : t))
+        );
+      }
+      setEditingTask(null);
+    };
+
+    const handleDeleteTask = () => {
+      if (window.confirm('Permanently delete this task?')) {
+        setTasks((prev) => prev.filter((t) => t.id !== editingTask.id));
+        setEditingTask(null);
+      }
+    };
   //
   // TODO M11 anchors:
   //   const [anchors, setAnchors] = useLocalStorage('vibetracker.anchors', [...]);
 
   return (
-    <div className="h-screen flex flex-col p-6 overflow-hidden">
+    <div className="h-screen flex flex-col p-6 overflow-hidden bg-slate-100 text-slate-900 font-sans">
       <header className="mb-6 flex items-end justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
             Vibecoding Project Tracker
           </h1>
           <p className="text-sm text-slate-500">
-            {/* Replace this line with your team name from PRD §11. */}
-            Team starter
+            BaseTracker · Team starter
           </p>
         </div>
+
+        {/* M5 '+' Button */}
+        <button
+          onClick={() => handleOpenNewModal('todo')}
+          className="bg-[#025a9e] hover:bg-[#003b6f] text-white px-4 py-2 rounded-sm font-bold text-sm transition-colors shadow-sm cursor-pointer"
+        >
+          + Add Task
+        </button>
       </header>
 
       {/* TODO M11 anchors: render the Anchor Board (Presentation / Demo / Report / Documentation) above the board. */}
@@ -144,19 +197,20 @@ export default function App() {
           Add a "+" button that opens a modal with every Task field.
           Clicking a card should open the same modal in edit mode.
       */}
+      {/* 4-Column Grid */}
       <main className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 min-h-0">
         {STAGES.map((stage) => {
           const columnTasks = tasks.filter((task) => task.status === stage.id);
 
           return (
-            <div key={stage.id} className="flex flex-col gap-4 bg-surface-card p-4 rounded-md border border-slate-200 shadow-sm h-full">
+            <div key={stage.id} className="flex flex-col gap-4 bg-white p-4 rounded-md border border-slate-200 shadow-sm h-full">
               
               {/* Column Header */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
                   {stage.label}
                 </h2>
-                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">
+                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono font-bold">
                   {columnTasks.length}
                 </span>
               </div>
@@ -166,14 +220,15 @@ export default function App() {
                 {columnTasks.map((task) => (
                   <div
                     key={task.id}
-                    className={`p-4 rounded-sm border-[1.5px] shadow-sm flex flex-col gap-2 transition-all
+                    onClick={() => handleOpenEditModal(task)}
+                    className={`p-4 rounded-sm border-[1.5px] shadow-sm flex flex-col gap-2 transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5
                       ${task.type === 'feature'
-                        ? 'border-type-feature-border bg-type-feature'
-                        : 'border-type-bug-border bg-type-bug'
+                        ? 'border-[#0ca678] bg-[#e6fcf5]'
+                        : 'border-[#e03131] bg-[#fff5f5]'
                       }`}
                   >
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-text-muted font-mono">ID-{task.id}</span>
+                      <span className="text-xs text-slate-600 font-mono font-semibold">ID-{task.id}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1
                         ${task.type === 'feature' ? 'bg-[#0ca678] text-white' : 'bg-[#e03131] text-white'}
                       `}>
@@ -181,15 +236,23 @@ export default function App() {
                       </span>
                     </div>
 
-                    <h3 className="text-sm font-semibold text-text-primary leading-snug">
+                    <h3 className="text-sm font-semibold text-slate-900 leading-snug">
                       {task.title}
                     </h3>
 
-                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-black/5">
-                      <div className="w-5 h-5 rounded-full bg-brand-primary flex items-center justify-center text-white text-[10px] font-bold">
-                        {task.assignee.charAt(task.assignee.length - 1)}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-black/5">
+                      <div className="flex items-center gap-2">
+                        {/* Fixed Avatar Icon */}
+                        <div className="w-5 h-5 rounded-full bg-[#025a9e] flex items-center justify-center text-white text-[10px] font-bold">
+                          {task.assignee.charAt(task.assignee.length - 1)}
+                        </div>
+                        <span className="text-xs text-slate-600">{task.assignee}</span>
                       </div>
-                      <span className="text-xs text-text-muted">{task.assignee}</span>
+                      {task.dueDate && (
+                        <span className="text-[10px] font-mono text-slate-500">
+                          {task.dueDate}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -206,6 +269,158 @@ export default function App() {
           );
         })}
       </main>
+
+      {/* M5 CRUD Modal Overlay */}
+      {editingTask && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-md max-w-lg w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4">
+            
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h2 className="text-lg font-bold text-slate-900">
+                {editingTask.id ? `Edit Task (ID-${editingTask.id})` : 'New Task'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setEditingTask(null)}
+                className="text-slate-400 hover:text-slate-700 font-bold text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTask} className="flex flex-col gap-4">
+              
+              {/* Title */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Task Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingTask.title}
+                  onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
+                  placeholder="e.g. Implement User Authentication"
+                  className="p-2 border border-slate-300 rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#025a9e]"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Description
+                </label>
+                <textarea
+                  rows={3}
+                  value={editingTask.description}
+                  onChange={(e) => setEditingTask({ ...editingTask, description: e.target.value })}
+                  placeholder="Provide context or instructions for this task..."
+                  className="p-2 border border-slate-300 rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#025a9e] resize-none"
+                />
+              </div>
+
+              {/* Type & Status Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Type
+                  </label>
+                  <select
+                    value={editingTask.type}
+                    onChange={(e) => setEditingTask({ ...editingTask, type: e.target.value })}
+                    className="p-2 border border-slate-300 rounded-sm text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#025a9e]"
+                  >
+                    <option value="feature">⚙️ Feature</option>
+                    <option value="bug">🚨 Bug</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Status
+                  </label>
+                  <select
+                    value={editingTask.status}
+                    onChange={(e) => setEditingTask({ ...editingTask, status: e.target.value })}
+                    className="p-2 border border-slate-300 rounded-sm text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#025a9e]"
+                  >
+                    {STAGES.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Assignee & Due Date Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Assignee
+                  </label>
+                  <select
+                    value={editingTask.assignee}
+                    onChange={(e) => setEditingTask({ ...editingTask, assignee: e.target.value })}
+                    className="p-2 border border-slate-300 rounded-sm text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#025a9e]"
+                  >
+                    {TEAM.map((member) => (
+                      <option key={member} value={member}>
+                        {member}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editingTask.dueDate || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, dueDate: e.target.value || null })}
+                    className="p-2 border border-slate-300 rounded-sm text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#025a9e]"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-between items-center mt-4 pt-3 border-t border-slate-200">
+                {editingTask.id ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteTask}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-sm text-sm font-bold transition-colors cursor-pointer"
+                  >
+                    Delete Task
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTask(null)}
+                    className="px-4 py-1.5 text-slate-700 hover:text-slate-900 text-sm font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  {/* Fixed Save Changes Button */}
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-[#025a9e] hover:bg-[#003b6f] text-white rounded-sm text-sm font-bold transition-colors shadow-sm cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
