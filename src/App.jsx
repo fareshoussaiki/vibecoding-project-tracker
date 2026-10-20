@@ -115,6 +115,16 @@ export default function App() {
   // TODO M5 crud-modal:
     const [editingTask, setEditingTask] = useState(null);
 
+    // M7 State: Toast Notification
+    const [toastMessage, setToastMessage] = useState(null);
+
+    const showToast = (msg) => {
+      setToastMessage(msg);
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+    };
+
 
      // M5 Handlers
     const handleOpenNewModal = (defaultStatus = 'todo') => {
@@ -133,6 +143,15 @@ export default function App() {
     const handleOpenEditModal = (task) => {
       setEditingTask({ ...task });
     };
+
+    // M7 Quick Handoff directly from card
+    const handleQuickHandoff = (taskId, newAssignee) => {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, assignee: newAssignee } : t))
+      );
+      showToast(`${newAssignee} has the helm.`);
+    };
+
 
     const handleSaveTask = (e) => {
       e.preventDefault();
@@ -166,6 +185,15 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col p-6 overflow-hidden bg-slate-100 text-slate-900 font-sans">
+
+      {/* M7 Visual Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-sm shadow-xl border border-slate-700 text-sm font-semibold flex items-center gap-2 transition-all">
+          <span>🤝</span>
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       <header className="mb-6 flex items-end justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
@@ -197,6 +225,33 @@ export default function App() {
           Add a "+" button that opens a modal with every Task field.
           Clicking a card should open the same modal in edit mode.
       */}
+
+
+      {/* M7 Team Active Driver Strip */}
+      <div className="mb-4 flex items-center gap-3 bg-white p-3 rounded-md border border-slate-200 shadow-sm flex-shrink-0">
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-2">
+          Team Drivers:
+        </span>
+        {TEAM.map((member) => {
+          const activeTask = tasks.find(
+            (t) => t.assignee === member && t.status === 'in-progress'
+          ) || tasks.find((t) => t.assignee === member && t.status !== 'done');
+
+          return (
+            <div key={member} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded border border-slate-200 text-xs">
+              <div className="w-5 h-5 rounded-full bg-[#025a9e] flex items-center justify-center text-white font-bold text-[10px]">
+                {member.charAt(member.length - 1)}
+              </div>
+              <span className="font-bold text-slate-800">{member}:</span>
+              <span className="text-slate-600 truncate max-w-[150px]">
+                {activeTask ? activeTask.title : 'Idle'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+
       {/* 4-Column Grid */}
       <main className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 min-h-0">
         {STAGES.map((stage) => {
@@ -230,7 +285,6 @@ export default function App() {
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-slate-600 font-mono font-semibold">ID-{task.id}</span>
                       
-                      {/* M6 Tag Style & Icon */}
                       <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1
                         ${task.type === 'feature' ? 'bg-[#0ca678] text-white' : 'bg-[#e03131] text-white'}
                       `}>
@@ -242,18 +296,29 @@ export default function App() {
                       {task.title}
                     </h3>
 
+                    {/* M7 Assignee + "Hand off to..." Inline Control */}
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-black/5">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <div className="w-5 h-5 rounded-full bg-[#025a9e] flex items-center justify-center text-white text-[10px] font-bold">
                           {task.assignee.charAt(task.assignee.length - 1)}
                         </div>
-                        <span className="text-xs text-slate-600">{task.assignee}</span>
+                        <span className="text-xs text-slate-700 font-medium">{task.assignee}</span>
                       </div>
-                      {task.dueDate && (
-                        <span className="text-[10px] font-mono text-slate-500">
-                          {task.dueDate}
-                        </span>
-                      )}
+
+                      {/* M7 Quick Handoff Dropdown */}
+                      <select
+                        value={task.assignee}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => handleQuickHandoff(task.id, e.target.value)}
+                        className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-700 font-medium focus:outline-none hover:border-slate-400 cursor-pointer"
+                        title="Hand off to..."
+                      >
+                        {TEAM.map((m) => (
+                          <option key={m} value={m}>
+                            Hand off to {m}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 ))}
@@ -270,7 +335,7 @@ export default function App() {
         })}
       </main>
 
-      {/* M5 / M6 CRUD Modal */}
+      {/* CRUD Modal */}
       {editingTask && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-md max-w-lg w-full p-6 shadow-2xl border border-slate-300 flex flex-col gap-4">
@@ -281,7 +346,6 @@ export default function App() {
                   {editingTask.id ? `Edit Task (ID-${editingTask.id})` : 'New Task'}
                 </h2>
                 
-                {/* M6 Badge inside Modal Header */}
                 <span className={`text-xs px-2 py-0.5 rounded-sm font-mono font-bold flex items-center gap-1 text-white ${
                   editingTask.type === 'feature' ? 'bg-[#0ca678]' : 'bg-[#e03131]'
                 }`}>
@@ -363,11 +427,11 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Assignee & Due Date Row */}
+              {/* Assignee (Hand off to) & Due Date Row */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Assignee
+                    Hand off to...
                   </label>
                   <select
                     value={editingTask.assignee}
