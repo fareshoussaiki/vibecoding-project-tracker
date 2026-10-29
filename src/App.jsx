@@ -34,11 +34,82 @@ const emptyTask = () => ({
   triedSoFar: 'Detail what approaches have already been attempted.', 
   pickUp: 'Explain exactly what the next developer or AI needs to do to continue this work.', 
   aiTool: 'ChatGPT',
-  prompts: [], lastChangedAt: nowISO(),
+  prompts: [], createdAt: nowISO(), lastChangedAt: nowISO(),
 });
+
 const seedTasks = [
-  { id: 'task-auth', title: 'Implement user authentication', description: 'Add secure session-based authentication to the web app.', type: 'feature', status: 'todo', assigneeId: '', reviewerId: '', dueDate: '', background: 'Add authentication to the application.', constraints: 'Must use secure session cookies.', triedSoFar: 'Reviewed the existing application structure.', pickUp: 'Need to set up the authentication context provider.', aiTool: 'ChatGPT', prompts: [], lastChangedAt: nowISO() },
-  { id: 'task-schema', title: 'Design database schema', description: 'Define entities and relationships for PostgreSQL database.', type: 'feature', status: 'in-progress', assigneeId: '', reviewerId: '', dueDate: '', background: 'Plan the data model for the application.', constraints: 'PostgreSQL compatible.', triedSoFar: 'Listed the main entities.', pickUp: 'Need to confirm relationships between entities.', aiTool: 'Claude', prompts: [], lastChangedAt: nowISO() },
+  { 
+    id: 'task-auth', 
+    title: 'Implement user authentication', 
+    description: 'Add secure session-based authentication to the web app.', 
+    type: 'feature', 
+    status: 'todo', 
+    assigneeId: '', 
+    reviewerId: '', 
+    dueDate: '', 
+    background: 'Add authentication to the application.', 
+    constraints: 'Must use secure session cookies.', 
+    triedSoFar: 'Reviewed the existing application structure.', 
+    pickUp: 'Need to set up the authentication context provider.', 
+    aiTool: 'ChatGPT', 
+    prompts: [], 
+    createdAt: nowISO(), 
+    lastChangedAt: nowISO() 
+  },
+  { 
+    id: 'task-schema', 
+    title: 'Design database schema', 
+    description: 'Define entities and relationships for PostgreSQL database.', 
+    type: 'feature', 
+    status: 'in-progress', 
+    assigneeId: '', 
+    reviewerId: '', 
+    dueDate: '', 
+    background: 'Plan the data model for the application.', 
+    constraints: 'PostgreSQL compatible.', 
+    triedSoFar: 'Listed the main entities.', 
+    pickUp: 'Need to confirm relationships between entities.', 
+    aiTool: 'Claude', 
+    prompts: [], 
+    createdAt: nowISO(), 
+    lastChangedAt: nowISO() 
+  },
+  { 
+    id: 'task-mobile-bug', 
+    title: 'Fix mobile layout overflow', 
+    description: 'The Kanban board columns overflow and break the viewport on screens smaller than 768px.', 
+    type: 'bug', 
+    status: 'review', 
+    assigneeId: '', 
+    reviewerId: '', 
+    dueDate: todayISO(), 
+    background: 'Users cannot scroll horizontally to see the Done column on mobile devices.', 
+    constraints: 'Must use Tailwind CSS utility classes without breaking drag-and-drop.', 
+    triedSoFar: 'Added overflow-x-auto to the main flex container, but it hides the drop targets.', 
+    pickUp: 'Review the CSS grid structure and test on mobile viewports.', 
+    aiTool: 'Gemini', 
+    prompts: [{ id: 'prompt-1', text: 'How do I fix horizontal scroll on a CSS flex container in Tailwind without breaking HTML5 drag and drop?', outcome: 'worked', tool: 'Gemini', dateAdded: nowISO() }], 
+    createdAt: nowISO(), 
+    lastChangedAt: nowISO() 
+  },
+  { 
+    id: 'task-repo-setup', 
+    title: 'Initialize repository and Vite', 
+    description: 'Scaffold the initial React project using Vite and configure Tailwind CSS.', 
+    type: 'feature', 
+    status: 'done', 
+    assigneeId: '', 
+    reviewerId: '', 
+    dueDate: '', 
+    background: 'Need a foundation for the hackathon project.', 
+    constraints: 'Must use Vite for fast HMR and React.', 
+    triedSoFar: 'Ran npm create vite@latest and installed dependencies.', 
+    pickUp: 'N/A - Setup is complete.', 
+    aiTool: 'Other', 
+    prompts: [], 
+    createdAt: nowISO(), 
+    lastChangedAt: nowISO() 
+  }
 ];
 
 function safeRead(key, fallback) {
@@ -498,7 +569,7 @@ export default function App() {
               <div className="flex flex-col gap-3 border-t border-slate-300 pt-3"><Field label="Prompt text"><textarea rows={3} value={promptText} onChange={(e) => setPromptText(e.target.value)} className="rounded-md border border-slate-400 p-2.5 text-slate-950" placeholder="Paste the prompt used to work on this task..." /></Field><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><Field label="AI tool used"><select value={promptTool} onChange={(e) => setPromptTool(e.target.value)} className="rounded-md border border-slate-400 bg-white p-2.5 text-slate-950">{AI_TOOLS.map((tool) => <option key={tool} value={tool}>{tool}</option>)}</select></Field><Field label="Did it work?"><select value={promptOutcome} onChange={(e) => setPromptOutcome(e.target.value)} className="rounded-md border border-slate-400 bg-white p-2.5 text-slate-950"><option value="worked">Worked</option><option value="failed">Failed</option></select></Field></div><div><Button type="button" onClick={addPrompt} disabled={!promptText.trim()} className="bg-blue-800 text-white hover:bg-blue-900">Save prompt</Button></div></div>
             </section>
             </>}
-            <p className="text-xs text-slate-700">Last changed: {editingTask.lastChangedAt ? new Date(editingTask.lastChangedAt).toLocaleString() : 'Not recorded yet'}. Saving changes updates the stalled-task timer.</p>
+            <p className="text-xs text-slate-700">Created: {new Date(editingTask.createdAt || Date.now()).toLocaleDateString()} · Last changed: {editingTask.lastChangedAt ? new Date(editingTask.lastChangedAt).toLocaleString() : 'Not recorded yet'}. Saving changes updates the stalled-task timer.</p>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">{tasks.some((t) => t.id === editingTask.id) ? <Button type="button" onClick={deleteTask} className="border border-red-400 bg-white text-red-900 hover:bg-red-50">Delete task</Button> : <span />}
             <div className="ml-auto flex gap-2"><Button type="button" onClick={() => setEditingTask(null)} className="border border-slate-300 bg-white text-slate-900 hover:bg-slate-100">Cancel</Button><Button type="submit" disabled={!editingTask.title.trim() || editingTask.title.trim().length > 100} className="bg-blue-800 text-white hover:bg-blue-900">Save task</Button></div>
